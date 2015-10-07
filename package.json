@@ -24,6 +24,7 @@
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
+    "ldap": "^0.7.1",
     "lodash": "^3.10.1"
   },
   "devDependencies": {
