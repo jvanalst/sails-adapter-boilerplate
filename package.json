@@ -1,18 +1,18 @@
 {
-  "name": "sails-YOUR_ADAPTER",
-  "version": "0.10.0",
-  "description": "YOUR_ADAPTER_DATASRC adapter for Sails / Waterline",
+  "name": "sails-ldap",
+  "version": "0.0.1",
+  "description": "LDAP adapter for Sails / Waterline",
   "main": "index.js",
   "scripts": {
     "test": "node test/integration/runner -R spec -b"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/sails-YOUR_ADAPTER.git"
+    "url": "https://github.com/jvanalst/sails-ldap.git"
   },
   "keywords": [
-    "A_KEYWORD_SPECIFIC_TO_YOUR_ADAPTER",
-    "ANOTHER_KEYWORD_SPECIFIC_TO_YOUR_ADAPTER",
+    "LDAP",
+    "ldapjs",
     "adapter",
     "sails",
     "waterline",
@@ -20,7 +20,7 @@
     "sailsjs",
     "sails.js"
   ],
-  "author": "YOUR NAME <YOUR@EMAIL>",
+  "author": "Jeffrey Van Alstine <vanalsti@ualberta.ca>",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {},

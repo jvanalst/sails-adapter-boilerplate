@@ -7,6 +7,7 @@
 // var mysql = require('node-mysql');
 // ...
 
+var ldap = require('ldap');
 
 
 /**
@@ -91,7 +92,7 @@ module.exports = (function () {
       // drop   => Drop schema and data, then recreate it
       // alter  => Drop/add columns as necessary.
       // safe   => Don't change anything (good for production DBs)
-      migrate: 'alter'
+      migrate: 'safe'
     },
 
 
@@ -106,7 +107,7 @@ module.exports = (function () {
      * @return {[type]}              [description]
      */
     registerCollection: function(collection, cb) {
-
+      _dbPools = {};
       // Keep a reference to this collection
       _modelReferences[collection.identity] = collection;
       
