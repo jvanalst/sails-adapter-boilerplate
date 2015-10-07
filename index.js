@@ -23,7 +23,8 @@ module.exports = (function () {
 
   // You'll want to maintain a reference to each collection
   // (aka model) that gets registered with this adapter.
-  var _modelReferences = {};
+  var _collectionReferences = {};
+  var _connections = {};
   
   // You may also want to store additional, private data
   // per-collection (esp. if your data store uses persistent
@@ -63,8 +64,8 @@ module.exports = (function () {
     defaults: {
       url: 'ldap://my.ldap.server',
       maxConnections: 1,
-      bindDN: 'cn=rootbeer',
-      bindCredentials: 'my-password'
+      // bindDN: 'cn=rootbeer',
+      // bindCredentials: 'my-password'
     },
 
 
@@ -77,12 +78,23 @@ module.exports = (function () {
      * @param  {Function} cb         [description]
      * @return {[type]}              [description]
      */
-    registerCollection: function(collection, cb) {
+    registerConnection: function(connection, collections, cb) {
       // Keep a reference to this collection
-      _modelReferences[collection.identity] = collection;
+      if (!connection.identity) return cb(Errors.IdentityMissing);
+      if (_connections[connection.identity]) return cb(Errors.IdentityDuplicate);
       
-      var config = _.extend(this.defaults, collection.config);
-      _dbPools[collection.identity] = ldap.createClient(config);
+      _modelReferences = collections;
+
+      var config = _.extend(this.defaults, connection);
+
+      console.log(config);
+      try {
+        _connections[connection.identity] = ldap.createClient(config);
+      } catch (e) {
+        //TODO: this doesn't catch everything because LDAP throws something asynchronously somewhere slightly unusual
+        e.message = e.message + '. There was a problem with the LDAP adapter config.';
+        return cb(e);
+      }
 
       cb();
     },
@@ -96,8 +108,8 @@ module.exports = (function () {
      * @return {[type]}      [description]
      */
     teardown: function(cb) {
-      //TODO: unbind ALL dbPools here... in parallel..
-      cb();
+      //TODO: unbind ALL dbPools here... in parallel..?
+      cb && cb();
     },
 
     find: function(collectionName, options, cb) {
