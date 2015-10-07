@@ -23,7 +23,9 @@
   "author": "Jeffrey Van Alstine <vanalsti@ualberta.ca>",
   "license": "MIT",
   "readmeFilename": "README.md",
-  "dependencies": {},
+  "dependencies": {
+    "lodash": "^3.10.1"
+  },
   "devDependencies": {
     "waterline-adapter-tests": "git://github.com/balderdashy/waterline-adapter-tests.git#associations",
     "mocha": "*",
