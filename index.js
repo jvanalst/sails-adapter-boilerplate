@@ -3,7 +3,7 @@
  */
 var ldap = require('ldap');
 var _ = require('lodash');
-
+var Promise = require('bluebird');
 /**
  * Sails Boilerplate Adapter
  *
@@ -52,6 +52,35 @@ module.exports = (function () {
   // host OR database OR user OR password = separate pool.
   var _dbPools = {};
 
+  var _LDAPSearch = function (opts) {
+    return new Promise(function (resolve, reject) {
+      var client = opts.client;
+      var base = opts.base;
+      var options = opts.options;
+
+      return client.search(base, options, function (err, res) {
+        if (err) return reject(err);
+
+        console.log('SEARCH IS GO');
+        var entries = [];
+
+        res.on('searchEntry', function (entry) {
+          console.log('ENTRY');
+          return entries.push(entry);
+        });
+        res.on('error', function (err) {
+          if (err) sails.log.warn(err);
+        });
+        res.on('end', function (result) {
+          console.log('RESULT');
+          if (result.errorMessage) return reject(result.errorMessage);
+
+          return resolve(entries);
+        });
+      });
+    });
+  };
+
   var adapter = {
 
     // Set to true if this adapter supports (or requires) things like data types, validations, keys, etc.
@@ -83,11 +112,10 @@ module.exports = (function () {
       if (!connection.identity) return cb(Errors.IdentityMissing);
       if (_connections[connection.identity]) return cb(Errors.IdentityDuplicate);
       
-      _modelReferences = collections;
+      _collectionReferences = collections;
 
       var config = _.extend(this.defaults, connection);
 
-      console.log(config);
       try {
         _connections[connection.identity] = ldap.createClient(config);
       } catch (e) {
@@ -112,10 +140,34 @@ module.exports = (function () {
       cb && cb();
     },
 
-    find: function(collectionName, options, cb) {
-
+    find: function(connection, collectionName, options, cb) {
+      console.log(connection);
+      console.log(collectionName);
+      console.log(options);
+      console.log(cb);
       // If you need to access your private data for this collection:
-      var collection = _modelReferences[collectionName];
+      var collection = _collectionReferences[collectionName];
+      var connection = _connections[connection];
+
+      //TODO: Do we need to move away from persistant LDAP connection? It seems buggy.
+      //TODO: should we fake pagination since LDAP doesn't support it?
+      //TODO: should we fake sort since LDAP doesn't support it?
+      //TODO: should we force people to specify sub/base/one in their models ???
+      //TODO: write filter from options.where
+      _LDAPSearch({
+        client: connection,
+        base: collection.base,
+        options: {
+          scope: 'sub',
+          filter: '(facultyCode=ED)',
+          paged: true
+        }
+      }).then(function (results) {
+        //TODO: Support for overriding binary/raw fields that get corrupted
+
+        console.log('I GOT HERE');
+        cb(null, _.pluck(results, 'object'));
+      }).catch(cb);
 
       // Options object is normalized for you:
       // 
@@ -128,8 +180,6 @@ module.exports = (function () {
       // You should end up w/ an array of objects as a result.
       // If no matches were found, this will be an empty array.
 
-      // Respond with an error, or the results.
-      cb(null, [{message: 'I got this far'}]);
     }
 
 

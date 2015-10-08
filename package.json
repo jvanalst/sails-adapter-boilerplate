@@ -24,6 +24,7 @@
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
+    "bluebird": "^2.10.2",
     "ldap": "^0.7.1",
     "lodash": "^3.10.1"
   },
