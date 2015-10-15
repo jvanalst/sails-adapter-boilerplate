@@ -25,32 +25,46 @@ module.exports = (function () {
   // (aka model) that gets registered with this adapter.
   var _collectionReferences = {};
   var _connections = {};
-  
-  // You may also want to store additional, private data
-  // per-collection (esp. if your data store uses persistent
-  // connections).
-  //
-  // Keep in mind that models can be configured to use different databases
-  // within the same app, at the same time.
-  // 
-  // i.e. if you're writing a MariaDB adapter, you should be aware that one
-  // model might be configured as `host="localhost"` and another might be using
-  // `host="foo.com"` at the same time.  Same thing goes for user, database, 
-  // password, or any other config.
-  //
-  // You don't have to support this feature right off the bat in your
-  // adapter, but it ought to get done eventually.
-  // 
-  // Sounds annoying to deal with...
-  // ...but it's not bad.  In each method, acquire a connection using the config
-  // for the current model (looking it up from `_modelReferences`), establish
-  // a connection, then tear it down before calling your method's callback.
-  // Finally, as an optimization, you might use a db pool for each distinct
-  // connection configuration, partioning pools for each separate configuration
-  // for your adapter (i.e. worst case scenario is a pool for each model, best case
-  // scenario is one single single pool.)  For many databases, any change to 
-  // host OR database OR user OR password = separate pool.
-  var _dbPools = {};
+
+
+  //TODO: Write This Methods since the connection pool doesn't work w/paging
+  var _LDAPConnect = function (opts) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var connection = ldap.createClient(opts);
+        connection.on('connect', function () {
+          resolve(connection);
+        });
+        connection.on('connectError', function (e) {
+          e.message = e.message + '. There was a problem with the LDAP adapter config.';
+          reject(e);
+        });
+      }
+      catch (e) {
+        //TODO: this doesn't catch everything because LDAP throws something asynchronously somewhere slightly unusual
+        e.message = e.message + '. There was a problem with the LDAP adapter config.';
+        return reject(e);
+      }
+    });
+  };
+
+  // var _LDAPBind = function (connection, opts) {
+  //   return new Promise(function (resolve, reject) {
+  //     connection.bind(opts.dn, opts.password, opts.controls, function (e) {
+  //       if (e) return reject(e);
+  //       resolve(connection);
+  //     });
+  //   })
+  // }
+
+  var _LDAPUnbind = function (opts) {
+    return new Promise(function (resolve, reject) {
+      opts.unbind(function (e) {
+        if (e) return reject(e);
+        resolve();
+      });
+    })
+  }
 
   var _LDAPSearch = function (opts) {
     return new Promise(function (resolve, reject) {
@@ -61,18 +75,15 @@ module.exports = (function () {
       return client.search(base, options, function (err, res) {
         if (err) return reject(err);
 
-        console.log('SEARCH IS GO');
         var entries = [];
 
         res.on('searchEntry', function (entry) {
-          console.log('ENTRY');
           return entries.push(entry);
         });
         res.on('error', function (err) {
           if (err) sails.log.warn(err);
         });
         res.on('end', function (result) {
-          console.log('RESULT');
           if (result.errorMessage) return reject(result.errorMessage);
 
           return resolve(entries);
@@ -80,6 +91,9 @@ module.exports = (function () {
       });
     });
   };
+
+  _generateFilter = function (key, value) {
+  }
 
   var adapter = {
 
@@ -116,15 +130,11 @@ module.exports = (function () {
 
       var config = _.extend(this.defaults, connection);
 
-      try {
-        _connections[connection.identity] = ldap.createClient(config);
-      } catch (e) {
-        //TODO: this doesn't catch everything because LDAP throws something asynchronously somewhere slightly unusual
-        e.message = e.message + '. There was a problem with the LDAP adapter config.';
-        return cb(e);
-      }
+      //We can't use connection pools because of LDAP doesn't
+      //support paging multiple queries on the same connection
+      _connections[connection.identity] = config;
 
-      cb();
+      return cb();
     },
 
     /**
@@ -136,7 +146,6 @@ module.exports = (function () {
      * @return {[type]}      [description]
      */
     teardown: function(cb) {
-      //TODO: unbind ALL dbPools here... in parallel..?
       cb && cb();
     },
 
@@ -147,27 +156,6 @@ module.exports = (function () {
       console.log(cb);
       // If you need to access your private data for this collection:
       var collection = _collectionReferences[collectionName];
-      var connection = _connections[connection];
-
-      //TODO: Do we need to move away from persistant LDAP connection? It seems buggy.
-      //TODO: should we fake pagination since LDAP doesn't support it?
-      //TODO: should we fake sort since LDAP doesn't support it?
-      //TODO: should we force people to specify sub/base/one in their models ???
-      //TODO: write filter from options.where
-      _LDAPSearch({
-        client: connection,
-        base: collection.base,
-        options: {
-          scope: 'sub',
-          filter: '(facultyCode=ED)',
-          paged: true
-        }
-      }).then(function (results) {
-        //TODO: Support for overriding binary/raw fields that get corrupted
-
-        console.log('I GOT HERE');
-        cb(null, _.pluck(results, 'object'));
-      }).catch(cb);
 
       // Options object is normalized for you:
       // 
@@ -180,6 +168,32 @@ module.exports = (function () {
       // You should end up w/ an array of objects as a result.
       // If no matches were found, this will be an empty array.
 
+      //TODO: should we fake pagination since LDAP doesn't support it?
+      //TODO: should we fake sorting since LDAP doesn't support it?
+      //TODO: should we force people to specify scope sub/base/one in their models ???
+      //TODO: write filter from options.where
+      _LDAPConnect(_connections[connection]).then(function (connection) {
+        return Promise.all([
+          connection,
+          _LDAPSearch({
+            client: connection,
+            base: collection.base,
+            options: {
+              scope: 'sub',
+              filter: '(&(term=1530)(facultyCode=ED))',
+              paged: true
+            }
+          })
+        ]);
+      }).spread(function (connection, result) {
+        return Promise.all([
+          result,
+          _LDAPUnbind(connection)
+        ]);
+      }).spread(function (result) {
+        //TODO: Support Binary Fields Here Somehow...
+        cb(null, _.pluck(result, 'object'));
+      }).catch(cb);
     }
 
 
