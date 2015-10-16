@@ -25,7 +25,7 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "bluebird": "^2.10.2",
-    "ldap": "^0.7.1",
+    "ldapjs": "git+https://github.com/mcavage/node-ldapjs.git#9ec1e9022d4e9c580e88f4ad7bf2e68c8994d21f",
     "lodash": "^3.10.1"
   },
   "devDependencies": {
