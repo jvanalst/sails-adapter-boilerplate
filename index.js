@@ -1,7 +1,8 @@
 /**
  * Module Dependencies
  */
-var ldap = require('ldap');
+var util = require('util');
+var ldap = require('ldapjs');
 var _ = require('lodash');
 var Promise = require('bluebird');
 /**
@@ -26,6 +27,59 @@ module.exports = (function () {
   var _collectionReferences = {};
   var _connections = {};
 
+  var _generateFilter = function (where) {
+    var filters = _.map(where, _parseFilter);
+
+    if (filters.length === 0) {
+      return undefined;
+    }
+    else if (filters.length === 1) {
+      return filters.pop();
+    }
+
+    return util.format('(&%s)', filters.join(''));
+  }
+
+  var _parseFilter = function (value, key) {
+    if (_.isArray(value)) {
+      return util.format('(|%s)', value.map(function (i) {
+        return _parseFilter(i, key);
+      }).join(''));
+    }
+
+    if (key == 'or') {
+      return util.format('(|%s)', _.map(value, _parseFilter).join(''));
+    }
+
+    if (_.isObject(value)) {
+      //parse modifier !/not/like/contains/startsWith/endsWith
+      var filters = _.map(value, function (v, k) {
+        if (k == '!' || k == 'not') {
+          return util.format('(!%s)', _parseFilter(v, key));
+        }
+        else if (k == 'like') {
+          return _parseFilter(v.replace(/%/g, '*'), key);
+        }
+        else if (k == 'contains') {
+          return _parseFilter(util.format('*%s*', v), key);
+        }
+        else if (k == 'startsWith') {
+          return _parseFilter(util.format('%s*', v), key);
+        }
+        else if (k == 'endsWith') {
+          return _parseFilter(util.format('*%s', v), key);
+        }
+      });
+
+      if (filters.length === 1) {
+        return filters.pop();
+      }
+
+      return util.format('(&%s)', filters.join(''));
+    }
+
+    return util.format('(%s=%s)', key, value);
+  }
 
   //TODO: Write This Methods since the connection pool doesn't work w/paging
   var _LDAPConnect = function (opts) {
@@ -71,17 +125,24 @@ module.exports = (function () {
       var client = opts.client;
       var base = opts.base;
       var options = opts.options;
+      var page = opts.page;
+      var entries = [];
 
-      return client.search(base, options, function (err, res) {
+      client.search(base, options, function (err, res) {
         if (err) return reject(err);
-
-        var entries = [];
 
         res.on('searchEntry', function (entry) {
           return entries.push(entry);
         });
         res.on('error', function (err) {
-          if (err) sails.log.warn(err);
+          //We don't care about size limits.
+          if (err.message = 'Size Limit Exceeded') {
+            return resolve(entries);
+          }
+
+          //in this situation usually the 
+          //'end' event isn't going to fire.
+          return reject(err);
         });
         res.on('end', function (result) {
           if (result.errorMessage) return reject(result.errorMessage);
@@ -91,9 +152,6 @@ module.exports = (function () {
       });
     });
   };
-
-  _generateFilter = function (key, value) {
-  }
 
   var adapter = {
 
@@ -153,7 +211,6 @@ module.exports = (function () {
       console.log(connection);
       console.log(collectionName);
       console.log(options);
-      console.log(cb);
       // If you need to access your private data for this collection:
       var collection = _collectionReferences[collectionName];
 
@@ -168,10 +225,8 @@ module.exports = (function () {
       // You should end up w/ an array of objects as a result.
       // If no matches were found, this will be an empty array.
 
-      //TODO: should we fake pagination since LDAP doesn't support it?
-      //TODO: should we fake sorting since LDAP doesn't support it?
       //TODO: should we force people to specify scope sub/base/one in their models ???
-      //TODO: write filter from options.where
+      console.log(_generateFilter(options.where));
       _LDAPConnect(_connections[connection]).then(function (connection) {
         return Promise.all([
           connection,
@@ -180,8 +235,9 @@ module.exports = (function () {
             base: collection.base,
             options: {
               scope: 'sub',
-              filter: '(&(term=1530)(facultyCode=ED))',
-              paged: true
+              filter: _generateFilter(options.where),
+              paged: true,
+              sizeLimit: options.limit
             }
           })
         ]);
