@@ -208,9 +208,6 @@ module.exports = (function () {
     },
 
     find: function(connection, collectionName, options, cb) {
-      console.log(connection);
-      console.log(collectionName);
-      console.log(options);
       // If you need to access your private data for this collection:
       var collection = _collectionReferences[collectionName];
 
@@ -226,7 +223,6 @@ module.exports = (function () {
       // If no matches were found, this will be an empty array.
 
       //TODO: should we force people to specify scope sub/base/one in their models ???
-      console.log(_generateFilter(options.where));
       _LDAPConnect(_connections[connection]).then(function (connection) {
         return Promise.all([
           connection,
