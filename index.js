@@ -83,7 +83,6 @@ module.exports = (function () {
 
   //TODO: Write This Methods since the connection pool doesn't work w/paging
   var _LDAPConnect = function (opts) {
-    console.log(opts);
     return new Promise(function (resolve, reject) {
       try {
         var client = ldap.createClient(opts.client);
