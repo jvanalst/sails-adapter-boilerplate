@@ -83,13 +83,24 @@ module.exports = (function () {
 
   //TODO: Write This Methods since the connection pool doesn't work w/paging
   var _LDAPConnect = function (opts) {
+    console.log(opts);
     return new Promise(function (resolve, reject) {
       try {
-        var connection = ldap.createClient(opts);
-        connection.on('connect', function () {
-          resolve(connection);
+        var client = ldap.createClient(opts.client);
+        client.on('connect', function () {
+          if (opts.bind) {
+            //TODO: Find a nice way to pass through bind.controls 
+            //      (without breaking if bind.controls is undefined)
+            client.bind(opts.bind.dn, opts.bind.password, function (e) {
+              if (e) return reject(e);
+              resolve(client);
+            });
+          }
+          else {
+            resolve(client);
+          }
         });
-        connection.on('connectError', function (e) {
+        client.on('connectError', function (e) {
           e.message = e.message + '. There was a problem with the LDAP adapter config.';
           reject(e);
         });
@@ -101,15 +112,6 @@ module.exports = (function () {
       }
     });
   };
-
-  // var _LDAPBind = function (connection, opts) {
-  //   return new Promise(function (resolve, reject) {
-  //     connection.bind(opts.dn, opts.password, opts.controls, function (e) {
-  //       if (e) return reject(e);
-  //       resolve(connection);
-  //     });
-  //   })
-  // }
 
   var _LDAPUnbind = function (opts) {
     return new Promise(function (resolve, reject) {
@@ -163,10 +165,10 @@ module.exports = (function () {
     // Default configuration for collections
     // (same effect as if these properties were included at the top level of the model definitions)
     defaults: {
-      url: 'ldap://my.ldap.server',
-      maxConnections: 1,
-      // bindDN: 'cn=rootbeer',
-      // bindCredentials: 'my-password'
+      client: {
+        url: 'ldap://my.ldap.server',
+        maxConnections: 1
+      }
     },
 
 
@@ -186,11 +188,9 @@ module.exports = (function () {
       
       _collectionReferences = collections;
 
-      var config = _.extend(this.defaults, connection);
-
       //We can't use connection pools because of LDAP doesn't
       //support paging multiple queries on the same connection
-      _connections[connection.identity] = config;
+      _connections[connection.identity] = connection;
 
       return cb();
     },
