@@ -231,6 +231,7 @@ module.exports = (function () {
             options: {
               scope: 'sub',
               filter: _generateFilter(options.where),
+              attributes: options.select,
               paged: true,
               sizeLimit: options.limit
             }
