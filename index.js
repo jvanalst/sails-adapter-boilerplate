@@ -29,18 +29,20 @@ module.exports = (function () {
 
   var _generateFilter = function (where) {
     var filters = _.map(where, _parseFilter);
+    var filter = undefined
 
-    if (filters.length === 0) {
-      return undefined;
+    if (filters.length === 1) {
+      filter = filters.pop();
     }
-    else if (filters.length === 1) {
-      return filters.pop();
+    else {
+      filter = util.format('(&%s)', filters.join(''));
     }
 
-    return util.format('(&%s)', filters.join(''));
+    return filter;
   }
 
   var _parseFilter = function (value, key) {
+
     if (_.isArray(value)) {
       return util.format('(|%s)', value.map(function (i) {
         return _parseFilter(i, key);
@@ -48,7 +50,7 @@ module.exports = (function () {
     }
 
     if (key == 'or') {
-      return util.format('(|%s)', _.map(value, _parseFilter).join(''));
+      return util.format('(|%s)', _generateFilter(value));
     }
 
     if (_.isObject(value)) {
@@ -184,7 +186,7 @@ module.exports = (function () {
       // Keep a reference to this collection
       if (!connection.identity) return cb(Errors.IdentityMissing);
       if (_connections[connection.identity]) return cb(Errors.IdentityDuplicate);
-      
+
       _collectionReferences = collections;
 
       //We can't use connection pools because of LDAP doesn't
